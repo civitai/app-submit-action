@@ -97,12 +97,65 @@ else
 fi
 rm -rf "$tmp"
 
-# The placeholder default cli-version is refused by name, before any download.
-install_placeholder() {
-  env -i PATH="$PATH" INPUT_CLI_VERSION=PENDING-first-civitai-cli-release-with-oidc-token \
+# What the refuses-non-tag CI job expects, on BOTH events it runs for: the real
+# preflight's recorded refusal must start with expected_non_tag_refusal.
+refusal_for() {
+  local event="$1" ref="$2" ref_type="$3" tmp app2 want got
+  tmp="$(mktemp -d)"; app2="$(mktemp -d)"
+  echo '{"blockId":"demo-app","version":"0.3.0","name":"Demo"}' >"$app2/block.manifest.json"
+  env -i PATH="$PATH" RUNNER_TEMP="$tmp" GITHUB_EVENT_NAME="$event" GITHUB_REF="$ref" \
+    GITHUB_REF_TYPE="$ref_type" GITHUB_REF_NAME="${ref##*/}" RUNNER_OS=Linux RUNNER_ARCH=X64 \
+    INPUT_API_KEY=key INPUT_PATH="$app2" bash "$here/preflight.sh" >/dev/null 2>&1
+  got="$(cat "$tmp/civitai-app-submit-action/error" 2>/dev/null)"
+  want="$( (source "$here/lib.sh"; expected_non_tag_refusal "$event" "$ref") )"
+  rm -rf "$tmp" "$app2"
+  if [[ -n "$got" && "$got" == "$want"* ]]; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL: refuses-non-tag expectation for $event $ref: want '$want…', got '$got'"
+    fails=$((fails + 1))
+  fi
+}
+refusal_for pull_request refs/pull/1/merge branch
+refusal_for push refs/heads/main branch
+expect_eq   "push-to-main expectation names the ref" \
+  "this action submits only on a tag push, but this run is for refs/heads/main (" \
+  expected_non_tag_refusal push refs/heads/main
+
+# The release pin: the placeholder (the file as committed today), a missing sha
+# and a complete pin.
+pins="$(mktemp -d)"
+full_pin() {
+  local i=0 p
+  printf 'PINNED_CLI_VERSION="v0.1.150"\n'
+  for p in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+    i=$((i + 1))
+    printf 'PINNED_CLI_SHA256_%s="%064x"\n' "$p" "$((i * 7919))"
+  done
+}
+full_pin >"$pins/full.sh"
+grep -v darwin_arm64 "$pins/full.sh" >"$pins/missing.sh"
+printf 'PINNED_CLI_VERSION="PENDING-x"\n' >"$pins/placeholder.sh"
+expect_ok   "release pin: complete"            bash "$here/check-release-pin.sh" "$pins/full.sh"
+expect_fail "release pin: placeholder version" "PINNED_CLI_VERSION is 'PENDING-x'" bash "$here/check-release-pin.sh" "$pins/placeholder.sh"
+expect_fail "release pin: a platform missing"  "PINNED_CLI_SHA256_darwin_arm64 is not a sha256" bash "$here/check-release-pin.sh" "$pins/missing.sh"
+# The committed pin is still the placeholder, so a tag push today must fail.
+expect_fail "release pin: the committed file"  "is not releasable" bash "$here/check-release-pin.sh"
+
+# cli-version: pinned refuses before any download when the pin is incomplete.
+install_pinned() {
+  env -i PATH="$PATH" INPUT_CLI_VERSION=pinned PINNED_CLI_FILE="$1" \
     RUNNER_OS=Linux RUNNER_ARCH=X64 bash "$here/install-cli.sh"
 }
-expect_fail "install: placeholder cli-version" "no civitai CLI release that sends the GitHub Actions OIDC token is pinned" install_placeholder
+expect_fail "install: pinned placeholder" "'latest' resolves to a CLI without that support" install_pinned "$pins/placeholder.sh"
+printf 'PINNED_CLI_VERSION="v0.1.150"\n' >"$pins/nosha.sh"
+expect_fail "install: pinned without a sha" "records no sha256 for linux_amd64" install_pinned "$pins/nosha.sh"
+rm -rf "$pins"
+
+# sha256_of agrees with a known vector.
+vec="$(mktemp)"; printf 'abc' >"$vec"
+expect_eq   "sha256_of" ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad sha256_of "$vec"
+rm -f "$vec"
 
 echo "$pass passed, $fails failed"
 [[ $fails -eq 0 && $pass -gt 0 ]]

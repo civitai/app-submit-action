@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*']
 
 permissions:
   contents: read
@@ -38,15 +39,30 @@ jobs:
         id: install
         env:
           INPUT_CLI_VERSION: latest
-        run: echo "cli=$(scripts/install-cli.sh)" >> "$GITHUB_OUTPUT"
+        # Captured first, so a failed install fails this step.
+        run: |
+          cli="$(scripts/install-cli.sh)"
+          echo "cli=$cli" >> "$GITHUB_OUTPUT"
       - name: the installed binary runs
         env:
           CLI: ${{ steps.install.outputs.cli }}
         run: '"$CLI" --version'
 
+  release-pin:
+    # A release of this action must not ship the placeholder CLI pin.
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: the pinned CLI version and every platform's sha256 are set
+        run: scripts/check-release-pin.sh
+
   refuses-non-tag:
-    # This workflow never runs for a tag, so the action must refuse here, at its
-    # first step, before downloading or requesting anything.
+    # On a pull request or a push to main, the action must refuse at its first
+    # step, before downloading or requesting anything: at the event check for a
+    # pull request, at the ref check for a branch push. (A tag push would pass
+    # both, so the job does not run there.)
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -56,7 +72,7 @@ jobs:
         uses: ./
         with:
           api-key: not-a-real-key
-      - name: it must have failed, at the event check, saying why
+      - name: it must have failed at preflight, saying why
         env:
           OUTCOME: ${{ steps.submit.outcome }}
         run: |
@@ -67,7 +83,9 @@ jobs:
           # die() records its message here; a refusal for any other reason
           # (a later step, a missing input) must not pass this job.
           msg="$(cat "$RUNNER_TEMP/civitai-app-submit-action/error" 2>/dev/null || true)"
-          want="this action submits only on a tag push, but this run was triggered by '$GITHUB_EVENT_NAME'"
+          # shellcheck source=scripts/lib.sh
+          source scripts/lib.sh
+          want="$(expected_non_tag_refusal "$GITHUB_EVENT_NAME" "$GITHUB_REF")"
           if [[ "$msg" != "$want"* ]]; then
             echo "::error::unexpected refusal message: '$msg'"
             exit 1

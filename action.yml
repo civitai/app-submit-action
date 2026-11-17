@@ -17,16 +17,14 @@ inputs:
     default: .
   cli-version:
     description: >-
-      The civitai CLI release to install: a tag such as v0.1.142, or "latest".
-      It must be a release that sends CIVITAI_GITHUB_OIDC_TOKEN. The default is
-      pinned per action release; "latest" trusts whatever civitai/cli last
-      published (the download is checked only against that release's own
-      checksums.txt).
+      The civitai CLI release to install. "pinned" (the default) installs the
+      release recorded in scripts/pinned-cli.sh and refuses any binary whose
+      sha256 differs from the one recorded there. A tag such as v0.1.142, or
+      "latest", is checked only against that release's own checksums.txt, so it
+      trusts the release as currently published. The release must support
+      CIVITAI_GITHUB_OIDC_TOKEN.
     required: false
-    # 🔴 PLACEHOLDER: replace with the first civitai/cli release that includes
-    # civitai/cli#918 (CIVITAI_GITHUB_OIDC_TOKEN) before tagging v1. Until then
-    # the install step refuses it with a message naming the input.
-    default: PENDING-first-civitai-cli-release-with-oidc-token
+    default: pinned
   audience:
     description: >-
       The OIDC token audience. The Civitai server accepts only "civitai.com";

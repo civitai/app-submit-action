@@ -72,3 +72,28 @@ cli_asset_name() {
   local tag="$1" platform="$2"
   echo "civitai_${tag#v}_${platform}"
 }
+
+# Every platform the action installs the CLI for (see cli_platform).
+# shellcheck disable=SC2034  # read by check-release-pin.sh
+CLI_PLATFORMS="linux_amd64 linux_arm64 darwin_amd64 darwin_arm64"
+
+# sha256_of <file>: the file's lowercase hex sha256.
+sha256_of() {
+  if command -v sha256sum >/dev/null; then
+    sha256sum "$1" | awk '{ print $1 }'
+  else
+    shasum -a 256 "$1" | awk '{ print $1 }'
+  fi
+}
+
+# expected_non_tag_refusal <GITHUB_EVENT_NAME> <GITHUB_REF>
+# The start of the refusal preflight gives a run that is not a tag push: the
+# event check's for anything but `push`, the ref check's for a branch push.
+# This repo's CI asserts it on both its pull_request and its push-to-main runs.
+expected_non_tag_refusal() {
+  if [[ "$1" != "push" ]]; then
+    echo "this action submits only on a tag push, but this run was triggered by '$1'"
+  else
+    echo "this action submits only on a tag push, but this run is for $2 ("
+  fi
+}
