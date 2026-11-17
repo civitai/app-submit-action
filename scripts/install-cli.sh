@@ -10,9 +10,10 @@
 #                        platform (as well as the release's checksums.txt). The
 #                        bytes are pinned, not just the tag.
 #                      - a tag or latest: checked only against that release's own
-#                        checksums.txt. civitai/cli releases are mutable and carry
-#                        no signature or build-provenance attestation, so this
-#                        trusts the release as currently published.
+#                        checksums.txt. civitai/cli releases carry no signature or
+#                        build-provenance attestation, so this trusts the release
+#                        as published. (Releases are immutable from v0.1.142, so
+#                        a published release's bytes cannot be swapped later.)
 #   PINNED_CLI_FILE    override for scripts/pinned-cli.sh (tests)
 #   RUNNER_OS, RUNNER_ARCH, RUNNER_TEMP  set by GitHub Actions
 set -euo pipefail
