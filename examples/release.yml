@@ -1,0 +1,26 @@
+# Copy to .github/workflows/release.yml in your app's repository.
+#
+# Push a tag that matches "version" in block.manifest.json to submit that
+# version for moderator review:
+#
+#   git tag v1.2.3 && git push origin v1.2.3
+name: Submit to Civitai
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # check out the repository
+      id-token: write  # let the action request a GitHub OIDC token
+    steps:
+      - uses: actions/checkout@v4
+      # Build your app here first if its bundle is generated (for example
+      # `npm ci && npm run build`), so the submitted directory is the built app.
+      - uses: civitai/app-submit-action@v1
+        with:
+          api-key: ${{ secrets.CIVITAI_API_KEY }}
+          # path: .   # the directory holding block.manifest.json

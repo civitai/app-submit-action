@@ -1,0 +1,60 @@
+name: Civitai App Submit
+description: Submit a Civitai App for moderator review on a tag push, with GitHub Actions OIDC provenance.
+author: Civitai
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  api-key:
+    description: >-
+      Your Civitai API key, from a repository secret (for example
+      secrets.CIVITAI_API_KEY). Never paste it into the workflow file.
+    required: true
+  path:
+    description: The app directory, the one holding block.manifest.json.
+    required: false
+    default: .
+  cli-version:
+    description: >-
+      The civitai CLI release to install: "latest" or a tag such as v0.1.142.
+      It must be a release that sends CIVITAI_GITHUB_OIDC_TOKEN.
+    required: false
+    default: latest
+  audience:
+    description: >-
+      The OIDC token audience. The Civitai server accepts only "civitai.com";
+      leave it unless Civitai tells you otherwise.
+    required: false
+    default: civitai.com
+  base-url:
+    description: The Civitai site to submit to.
+    required: false
+    default: https://civitai.com
+
+runs:
+  using: composite
+  steps:
+    - name: Check the run can submit
+      shell: bash
+      env:
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_PATH: ${{ inputs.path }}
+      run: '"$GITHUB_ACTION_PATH/scripts/preflight.sh"'
+
+    - name: Install the civitai CLI
+      id: install
+      shell: bash
+      env:
+        INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+      run: echo "cli=$("$GITHUB_ACTION_PATH/scripts/install-cli.sh")" >> "$GITHUB_OUTPUT"
+
+    - name: Submit for review
+      shell: bash
+      env:
+        CIVITAI_CLI: ${{ steps.install.outputs.cli }}
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_AUDIENCE: ${{ inputs.audience }}
+        INPUT_BASE_URL: ${{ inputs.base-url }}
+      run: '"$GITHUB_ACTION_PATH/scripts/submit.sh"'
