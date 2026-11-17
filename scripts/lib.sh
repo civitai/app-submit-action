@@ -4,9 +4,25 @@
 # scripts/test-lib.sh can test it without a runner.
 
 die() {
-  # A GitHub Actions error annotation, then fail.
+  # A GitHub Actions error annotation, then fail. The message is also kept in
+  # $RUNNER_TEMP/civitai-app-submit-action/error, so a later step (this repo's
+  # CI) can assert WHY the action stopped, not only that it did.
   echo "::error title=civitai/app-submit-action::$*" >&2
+  if [[ -n "${RUNNER_TEMP:-}" ]]; then
+    mkdir -p "$RUNNER_TEMP/civitai-app-submit-action" 2>/dev/null &&
+      printf '%s\n' "$*" >"$RUNNER_TEMP/civitai-app-submit-action/error" 2>/dev/null
+  fi
   exit 1
+}
+
+# check_event_is_push <GITHUB_EVENT_NAME>
+# Only a push of a tag is a release: a workflow_dispatch or release event can
+# run on a tag ref too, but GitHub's token then names that event and the
+# Civitai server refuses it. Refusing here costs nothing to download.
+check_event_is_push() {
+  if [[ "$1" != "push" ]]; then
+    die "this action submits only on a tag push, but this run was triggered by '${1:-an unknown event}'. Trigger the workflow with 'on: push: tags: [\"v*\"]'."
+  fi
 }
 
 # check_ref_is_tag <GITHUB_REF_TYPE> <GITHUB_REF>

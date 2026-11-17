@@ -45,6 +45,11 @@ expect_eq() {
   fi
 }
 
+expect_ok   "push event"              check_event_is_push push
+expect_fail "workflow_dispatch event" "triggered by 'workflow_dispatch'" check_event_is_push workflow_dispatch
+expect_fail "release event"           "triggered by 'release'" check_event_is_push release
+expect_fail "no event"                "triggered by 'an unknown event'" check_event_is_push ""
+
 expect_ok   "tag ref"                 check_ref_is_tag tag refs/tags/v1.2.3
 expect_fail "branch ref"              "submits only on a tag push" check_ref_is_tag branch refs/heads/main
 expect_fail "tag type, branch ref"    "submits only on a tag push" check_ref_is_tag tag refs/heads/v1.2.3
@@ -66,7 +71,8 @@ expect_eq   "bare-binary asset name"  civitai_0.1.141_linux_amd64 cli_asset_name
 app="$(mktemp -d)"
 echo '{"blockId":"demo-app","version":"0.3.0","name":"Demo"}' >"$app/block.manifest.json"
 preflight() {
-  env -i PATH="$PATH" GITHUB_REF_TYPE="$1" GITHUB_REF="$2" GITHUB_REF_NAME="${2##*/}" \
+  env -i PATH="$PATH" GITHUB_EVENT_NAME="${EVENT:-push}" \
+    GITHUB_REF_TYPE="$1" GITHUB_REF="$2" GITHUB_REF_NAME="${2##*/}" \
     RUNNER_OS=Linux RUNNER_ARCH=X64 INPUT_API_KEY="${3-key}" INPUT_PATH="$app" \
     ACTIONS_ID_TOKEN_REQUEST_URL="${4-https://example.invalid/token?api-version=2.0}" \
     ACTIONS_ID_TOKEN_REQUEST_TOKEN="${4-t}" \
@@ -77,7 +83,26 @@ expect_fail "preflight: branch push"            "submits only on a tag push" pre
 expect_fail "preflight: tag != version"         "tag v0.3.1 does not match the manifest version 0.3.0" preflight tag refs/tags/v0.3.1
 expect_fail "preflight: no api key"             "api-key input is empty" preflight tag refs/tags/v0.3.0 ""
 expect_fail "preflight: no id-token permission" "id-token: write" preflight tag refs/tags/v0.3.0 key ""
+EVENT=workflow_dispatch expect_fail "preflight: dispatch on a tag ref" "triggered by 'workflow_dispatch'" preflight tag refs/tags/v0.3.0
+EVENT=release expect_fail "preflight: release event on a tag ref" "triggered by 'release'" preflight tag refs/tags/v0.3.0
 rm -rf "$app"
+
+# A refusal is also recorded under $RUNNER_TEMP, for a later step to read.
+tmp="$(mktemp -d)"
+( source "$here/lib.sh"; RUNNER_TEMP="$tmp" die "recorded refusal 7731" ) 2>/dev/null
+if [[ "$(cat "$tmp/civitai-app-submit-action/error" 2>/dev/null)" == "recorded refusal 7731" ]]; then
+  pass=$((pass + 1))
+else
+  echo "FAIL: die did not record its message under RUNNER_TEMP"; fails=$((fails + 1))
+fi
+rm -rf "$tmp"
+
+# The placeholder default cli-version is refused by name, before any download.
+install_placeholder() {
+  env -i PATH="$PATH" INPUT_CLI_VERSION=PENDING-first-civitai-cli-release-with-oidc-token \
+    RUNNER_OS=Linux RUNNER_ARCH=X64 bash "$here/install-cli.sh"
+}
+expect_fail "install: placeholder cli-version" "no civitai CLI release that sends the GitHub Actions OIDC token is pinned" install_placeholder
 
 echo "$pass passed, $fails failed"
 [[ $fails -eq 0 && $pass -gt 0 ]]

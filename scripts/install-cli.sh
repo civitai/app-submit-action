@@ -3,14 +3,23 @@
 # release's checksums.txt, and prints the binary's path on stdout.
 #
 # Inputs (environment):
-#   INPUT_CLI_VERSION  a release tag (e.g. v0.1.142) or "latest"
+#   INPUT_CLI_VERSION  a release tag (e.g. v0.1.142) or "latest". "latest"
+#                      trusts whatever civitai/cli last published: the binary is
+#                      checked only against that same release's checksums.txt
+#                      (civitai/cli publishes no signature or build-provenance
+#                      attestation for its binaries).
 #   RUNNER_OS, RUNNER_ARCH, RUNNER_TEMP  set by GitHub Actions
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 repo="https://github.com/civitai/cli"
-want="${INPUT_CLI_VERSION:-latest}"
+want="${INPUT_CLI_VERSION:?the cli-version input is empty}"
+# The action's default until the first civitai CLI release that sends the token
+# exists (see action.yml). Refuse it by name rather than as a malformed tag.
+if [[ "$want" == PENDING-* ]]; then
+  die "no civitai CLI release that sends the GitHub Actions OIDC token is pinned in this version of the action yet. Pass cli-version: <a release that supports CIVITAI_GITHUB_OIDC_TOKEN>, or 'latest'."
+fi
 platform="$(cli_platform "${RUNNER_OS:-}" "${RUNNER_ARCH:-}")"
 
 if [[ "$want" == "latest" ]]; then

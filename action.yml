@@ -17,10 +17,16 @@ inputs:
     default: .
   cli-version:
     description: >-
-      The civitai CLI release to install: "latest" or a tag such as v0.1.142.
-      It must be a release that sends CIVITAI_GITHUB_OIDC_TOKEN.
+      The civitai CLI release to install: a tag such as v0.1.142, or "latest".
+      It must be a release that sends CIVITAI_GITHUB_OIDC_TOKEN. The default is
+      pinned per action release; "latest" trusts whatever civitai/cli last
+      published (the download is checked only against that release's own
+      checksums.txt).
     required: false
-    default: latest
+    # 🔴 PLACEHOLDER: replace with the first civitai/cli release that includes
+    # civitai/cli#918 (CIVITAI_GITHUB_OIDC_TOKEN) before tagging v1. Until then
+    # the install step refuses it with a message naming the input.
+    default: PENDING-first-civitai-cli-release-with-oidc-token
   audience:
     description: >-
       The OIDC token audience. The Civitai server accepts only "civitai.com";
@@ -47,7 +53,11 @@ runs:
       shell: bash
       env:
         INPUT_CLI_VERSION: ${{ inputs.cli-version }}
-      run: echo "cli=$("$GITHUB_ACTION_PATH/scripts/install-cli.sh")" >> "$GITHUB_OUTPUT"
+      # Captured first, so a failed install fails THIS step (a `$(...)` inside the
+      # echo would swallow its exit status and fail the next step instead).
+      run: |
+        cli="$("$GITHUB_ACTION_PATH/scripts/install-cli.sh")"
+        echo "cli=$cli" >> "$GITHUB_OUTPUT"
 
     - name: Submit for review
       shell: bash

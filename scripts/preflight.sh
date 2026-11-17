@@ -4,6 +4,7 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+check_event_is_push "${GITHUB_EVENT_NAME:-}"
 check_ref_is_tag "${GITHUB_REF_TYPE:-}" "${GITHUB_REF:-}"
 cli_platform "${RUNNER_OS:-}" "${RUNNER_ARCH:-}" >/dev/null
 

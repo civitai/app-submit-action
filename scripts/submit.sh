@@ -17,8 +17,15 @@ cli="${CIVITAI_CLI:?}"
 
 # A CLI too old to send the token would submit without it, and the submission
 # would silently carry no verified source. Its help names the variable it reads.
-if ! "$cli" app submit --help 2>/dev/null | grep -q 'CIVITAI_GITHUB_OIDC_TOKEN'; then
-  die "this civitai CLI does not send a GitHub Actions OIDC token. Use cli-version 'latest' or a release that supports CIVITAI_GITHUB_OIDC_TOKEN."
+#
+# Captured first, then matched: never `"$cli" ... | grep -q` here. Under
+# pipefail, grep -q exits at the first match, the CLI is still writing its help
+# and dies of SIGPIPE (141), and the pipeline fails as if the variable were
+# missing (measured: 76 of 100 runs falsely refused against a real CLI;
+# tests/submit-capability.sh is the regression check).
+help="$("$cli" app submit --help 2>/dev/null)" || help=""
+if [[ "$help" != *CIVITAI_GITHUB_OIDC_TOKEN* ]]; then
+  die "this civitai CLI does not send a GitHub Actions OIDC token. Set cli-version to a release that supports CIVITAI_GITHUB_OIDC_TOKEN."
 fi
 
 # Requested last, right before the submit, because the token is short-lived.
