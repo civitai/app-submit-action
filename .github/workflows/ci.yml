@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: shellcheck
+        run: shellcheck -x -S warning scripts/*.sh tests/*.sh
+      - name: actionlint
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: lib + preflight tests
+        run: bash scripts/test-lib.sh
+
+  install:
+    # Downloads and checksum-verifies the real latest CLI release on both runner OSes.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: install the latest CLI
+        id: install
+        env:
+          INPUT_CLI_VERSION: latest
+        # Captured first, so a failed install fails this step.
+        run: |
+          cli="$(scripts/install-cli.sh)"
+          echo "cli=$cli" >> "$GITHUB_OUTPUT"
+      - name: the installed binary runs
+        env:
+          CLI: ${{ steps.install.outputs.cli }}
+        run: '"$CLI" --version'
+
+  release-pin:
+    # A release of this action must not ship the placeholder CLI pin.
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: the pinned CLI version and every platform's sha256 are set
+        run: scripts/check-release-pin.sh
+
+  refuses-non-tag:
+    # On a pull request or a push to main, the action must refuse at its first
+    # step, before downloading or requesting anything: at the event check for a
+    # pull request, at the ref check for a branch push. (A tag push would pass
+    # both, so the job does not run there.)
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: run the action on a non-tag ref
+        id: submit
+        continue-on-error: true
+        uses: ./
+        with:
+          api-key: not-a-real-key
+      - name: it must have failed at preflight, saying why
+        env:
+          OUTCOME: ${{ steps.submit.outcome }}
+        run: |
+          if [[ "$OUTCOME" != "failure" ]]; then
+            echo "::error::the action did not refuse a non-tag run (outcome: $OUTCOME)"
+            exit 1
+          fi
+          # die() records its message here; a refusal for any other reason
+          # (a later step, a missing input) must not pass this job.
+          msg="$(cat "$RUNNER_TEMP/civitai-app-submit-action/error" 2>/dev/null || true)"
+          # shellcheck source=scripts/lib.sh
+          source scripts/lib.sh
+          want="$(expected_non_tag_refusal "$GITHUB_EVENT_NAME" "$GITHUB_REF")"
+          if [[ "$msg" != "$want"* ]]; then
+            echo "::error::unexpected refusal message: '$msg'"
+            exit 1
+          fi
+          echo "refused as expected: $msg"
+
+  submit-capability:
+    # Runs scripts/submit.sh against a REAL civitai CLI binary, up to the network
+    # (the token request goes to a closed local port). Catches a capability check
+    # that falsely refuses a CLI that supports the token, as the SIGPIPE-prone
+    # `--help | grep -q` under pipefail did on most runs.
+    runs-on: ubuntu-latest
+    env:
+      # civitai/cli#918 (CIVITAI_GITHUB_OIDC_TOKEN), built from source until a
+      # release includes it; then switch to installing that release.
+      CLI_REF: 4dbd5737df52b4d9b7d94150363a22b799c54b8b
+      # The last release WITHOUT the capability: the negative control.
+      OLD_CLI_VERSION: v0.1.141
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: civitai/cli
+          ref: ${{ env.CLI_REF }}
+          path: cli-src
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: cli-src/go.mod
+          cache: false
+      - name: build the CLI
+        run: |
+          (cd cli-src && go build -o "$RUNNER_TEMP/civitai-new" ./cmd/civitai)
+          rm -rf cli-src
+      - name: submit.sh gets past the capability check on every run
+        run: EXPECT=reached tests/submit-capability.sh "$RUNNER_TEMP/civitai-new" scripts/submit.sh 100
+      - name: "control: the old `--help | grep -q` check is caught"
+        run: |
+          mutant="$RUNNER_TEMP/mutant/scripts"
+          mkdir -p "$mutant"
+          cp scripts/lib.sh "$mutant/"
+          # Swap the captured check back to the piped one it replaced.
+          # shellcheck disable=SC2016  # the $-expressions are sed text, not shell
+          sed -e '/^help="\$("\$cli" app submit --help 2>\/dev\/null)" || help=""$/d' \
+              -e 's/^if \[\[ "\$help" != \*CIVITAI_GITHUB_OIDC_TOKEN\* \]\]; then$/if ! "$cli" app submit --help 2>\/dev\/null | grep -q '"'"'CIVITAI_GITHUB_OIDC_TOKEN'"'"'; then/' \
+              scripts/submit.sh >"$mutant/submit.sh"
+          # The control is only meaningful if the substitution happened.
+          grep -q -- '--help 2>/dev/null | grep -q' "$mutant/submit.sh"
+          if grep -q '^help=' "$mutant/submit.sh"; then exit 1; fi
+          EXPECT=refused-any tests/submit-capability.sh "$RUNNER_TEMP/civitai-new" "$mutant/submit.sh" 100
+      - name: "control: a CLI without the capability is refused every time"
+        env:
+          INPUT_CLI_VERSION: ${{ env.OLD_CLI_VERSION }}
+        run: |
+          old="$(scripts/install-cli.sh)"
+          EXPECT=refused-all tests/submit-capability.sh "$old" scripts/submit.sh 20
