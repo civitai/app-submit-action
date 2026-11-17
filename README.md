@@ -68,10 +68,10 @@ The submit then goes through the CLI's usual checks, such as the version and lis
 The checksum check catches a corrupted or truncated download. It does not prove who built the binary: the binary and `checksums.txt` come from the same GitHub release, and civitai/cli does not yet publish a signature or a build-provenance attestation for its binaries (`gh attestation verify` finds none). So:
 
 - **`pinned` (the default) pins the bytes, not just the tag.** Each release of this action records one CLI version and the sha256 of its binary for every platform in [`scripts/pinned-cli.sh`](scripts/pinned-cli.sh), and refuses a download that does not match, even if the CLI release was later changed. A new CLI reaches you only when you move to a newer action version.
-- **A tag such as `v0.1.142` pins only the tag.** CLI releases can be edited after publishing, so the binary is checked only against that release's own `checksums.txt`.
+- **A tag such as `v0.1.142` pins the tag.** The binary is checked against that release's own `checksums.txt`. civitai/cli releases are immutable from v0.1.142 on, so a published release's files cannot be replaced; older releases could be.
 - **`latest` trusts whatever civitai/cli last published.** Use it only if you accept that.
 
-> 🔴 **Maintainers:** until the first CLI release that sends `CIVITAI_GITHUB_OIDC_TOKEN` exists, `scripts/pinned-cli.sh` holds the placeholder version `PENDING-first-civitai-cli-release-with-oidc-token` and no sha256 values, and the install step refuses it by name. Before tagging a release, set the version and all four sha256 values from that CLI release's `checksums.txt`. CI's `release-pin` job fails a tag push while any of them is unset. Until then, `latest` resolves to a CLI without the token support, so the action stops at its capability check.
+> 🔴 **Maintainers:** this version pins civitai CLI `v0.1.142`, the first release that sends `CIVITAI_GITHUB_OIDC_TOKEN`. To move the pin, set the version and all four sha256 values in `scripts/pinned-cli.sh` from that CLI release's `checksums.txt` (the bare-binary rows). CI's `release-pin` job fails a tag push while any of them is unset.
 
 ## What Civitai records, and what it does not mean
 

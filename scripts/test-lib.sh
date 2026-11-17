@@ -122,8 +122,7 @@ expect_eq   "push-to-main expectation names the ref" \
   "this action submits only on a tag push, but this run is for refs/heads/main (" \
   expected_non_tag_refusal push refs/heads/main
 
-# The release pin: the placeholder (the file as committed today), a missing sha
-# and a complete pin.
+# The release pin: a placeholder, a missing sha and a complete pin.
 pins="$(mktemp -d)"
 full_pin() {
   local i=0 p
@@ -139,8 +138,8 @@ printf 'PINNED_CLI_VERSION="PENDING-x"\n' >"$pins/placeholder.sh"
 expect_ok   "release pin: complete"            bash "$here/check-release-pin.sh" "$pins/full.sh"
 expect_fail "release pin: placeholder version" "PINNED_CLI_VERSION is 'PENDING-x'" bash "$here/check-release-pin.sh" "$pins/placeholder.sh"
 expect_fail "release pin: a platform missing"  "PINNED_CLI_SHA256_darwin_arm64 is not a sha256" bash "$here/check-release-pin.sh" "$pins/missing.sh"
-# The committed pin is still the placeholder, so a tag push today must fail.
-expect_fail "release pin: the committed file"  "is not releasable" bash "$here/check-release-pin.sh"
+# The committed pin is a real release with all four sha256 values, so a tag push passes.
+expect_ok   "release pin: the committed file"  bash "$here/check-release-pin.sh"
 
 # cli-version: pinned refuses before any download when the pin is incomplete.
 install_pinned() {
