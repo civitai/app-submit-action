@@ -28,17 +28,21 @@ jobs:
         run: bash scripts/test-lib.sh
 
   install:
-    # Downloads and checksum-verifies the real latest CLI release on both runner OSes.
+    # Downloads and checksum-verifies the real CLI release on both runner OSes:
+    # "latest", and "pinned" (the action's default, checked against the sha256s
+    # in scripts/pinned-cli.sh). ubuntu-latest is linux_amd64 and macos-latest is
+    # darwin_arm64; the other two pinned platforms are not exercised here.
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        cli-version: [latest, pinned]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-      - name: install the latest CLI
+      - name: install the CLI (${{ matrix.cli-version }})
         id: install
         env:
-          INPUT_CLI_VERSION: latest
+          INPUT_CLI_VERSION: ${{ matrix.cli-version }}
         # Captured first, so a failed install fails this step.
         run: |
           cli="$(scripts/install-cli.sh)"
@@ -47,6 +51,22 @@ jobs:
         env:
           CLI: ${{ steps.install.outputs.cli }}
         run: '"$CLI" --version'
+      - name: "control: a pin with one wrong digit is refused"
+        if: matrix.cli-version == 'pinned'
+        run: |
+          bad="$RUNNER_TEMP/bad-pin.sh"
+          # Flip the last hex digit of every recorded sha256.
+          sed -E 's/^(PINNED_CLI_SHA256_[a-z0-9_]+="[0-9a-f]{63})([0-9a-f])"/\1X\2"/; s/X0"/1"/; s/X([1-9a-f])"/0"/' \
+            scripts/pinned-cli.sh >"$bad"
+          if cmp -s scripts/pinned-cli.sh "$bad"; then
+            echo "::error::the control did not change the pin file"; exit 1
+          fi
+          if PINNED_CLI_FILE="$bad" INPUT_CLI_VERSION=pinned scripts/install-cli.sh 2>"$RUNNER_TEMP/err"; then
+            echo "::error::install-cli.sh accepted a wrong pin"; exit 1
+          fi
+          grep -q 'is not the binary this action pins' "$RUNNER_TEMP/err" ||
+            { echo "::error::refused for another reason: $(cat "$RUNNER_TEMP/err")"; exit 1; }
+          echo "refused as expected: $(cat "$RUNNER_TEMP/err")"
 
   release-pin:
     # A release of this action must not ship the placeholder CLI pin.
