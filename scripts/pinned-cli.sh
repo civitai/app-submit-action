@@ -14,8 +14,8 @@
 # civitai_<version>_<platform>). The release-pin CI job fails on a tag push
 # while any of them is unset.
 # shellcheck disable=SC2034  # read by the scripts that source this file
-PINNED_CLI_VERSION="v0.1.142"
-PINNED_CLI_SHA256_linux_amd64="43773853ef50b5475ce4d7e25947b905fd0adaa3938f183a4751ecd7a58d9976"
-PINNED_CLI_SHA256_linux_arm64="6d6739c2e82b1c1b80af5cbb506f836648bfa9a391f84d097b8aa154753b07d5"
-PINNED_CLI_SHA256_darwin_amd64="ec63a84636f05dfc159fb8b5448f79413dfc423f9acf47022fdb4d93c5ec10a7"
-PINNED_CLI_SHA256_darwin_arm64="6ee2e0a3bf38189b1e3b76f6e40228c6c05dec297a47e2ee08e917eacc157da0"
+PINNED_CLI_VERSION="v0.1.143"
+PINNED_CLI_SHA256_linux_amd64="0277211f8419076964d1159937e6ae4308e77bf5ffee2342533e8f1377ca4ed6"
+PINNED_CLI_SHA256_linux_arm64="b2e4b8540556505aac7b9fbab28e481065266611f77a43dd168922a0cec6db48"
+PINNED_CLI_SHA256_darwin_amd64="46f34cd365733c2e78b722e7c3bc9dd33bc414943e337bca8c9f717484cdc697"
+PINNED_CLI_SHA256_darwin_arm64="8171a5ff7fedf7791a4d756d37bf1f544afa71e10b27a998d07692b74bc4fb34"
