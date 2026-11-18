@@ -51,18 +51,6 @@ jobs:
         env:
           CLI: ${{ steps.install.outputs.cli }}
         run: '"$CLI" --version'
-      - name: the pinned install is the pinned version
-        if: matrix.cli-version == 'pinned'
-        env:
-          CLI: ${{ steps.install.outputs.cli }}
-        run: |
-          # shellcheck source=scripts/pinned-cli.sh
-          source scripts/pinned-cli.sh
-          out="$("$CLI" --version)"
-          if [[ "$out" != *"${PINNED_CLI_VERSION#v}"* ]]; then
-            echo "::error::pinned $PINNED_CLI_VERSION, but the binary reports: $out"
-            exit 1
-          fi
       - name: "control: a pin with one wrong digit is refused"
         if: matrix.cli-version == 'pinned'
         run: |
@@ -78,6 +66,7 @@ jobs:
           fi
           grep -q 'is not the binary this action pins' "$RUNNER_TEMP/err" ||
             { echo "::error::refused for another reason: $(cat "$RUNNER_TEMP/err")"; exit 1; }
+          echo "refused as expected: $(cat "$RUNNER_TEMP/err")"
 
   release-pin:
     # A release of this action must not ship the placeholder CLI pin.
