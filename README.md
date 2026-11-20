@@ -32,7 +32,7 @@ jobs:
 
 Then:
 
-1. **Add your API key as a repository secret.** In the repository, go to Settings → Secrets and variables → Actions → New repository secret. Name it `CIVITAI_API_KEY` and paste a Civitai API key from your account settings. Never put the key in the workflow file.
+1. **Add your API key as a repository secret.** In the repository, go to Settings → Secrets and variables → Actions → New repository secret. Name it `CIVITAI_API_KEY` and paste a Civitai API key from your account settings. Never put the key in the workflow file. Any personal API key submits, so give it the narrowest scope you can (a key with only Read on Profile & Settings works). With a key that isn't Full Access, the CLI skips its store-listing check with a warning; run `civitai app doctor <slug>` locally to check the listing instead. See [Which API key](https://developer.civitai.com/apps/guide/github-actions#which-api-key).
 2. **Push a tag that matches the manifest version.** If `block.manifest.json` says `"version": "1.2.3"`, tag `v1.2.3` (or `1.2.3`):
 
    ```sh
