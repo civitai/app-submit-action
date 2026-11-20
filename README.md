@@ -71,7 +71,7 @@ The checksum check catches a corrupted or truncated download. It does not prove 
 - **A tag such as `v0.1.142` pins the tag.** The binary is checked against that release's own `checksums.txt`. civitai/cli releases are immutable from v0.1.142 on, so a published release's files cannot be replaced; older releases could be.
 - **`latest` trusts whatever civitai/cli last published.** Use it only if you accept that.
 
-> 🔴 **Maintainers:** this version pins civitai CLI `v0.1.145`. (`v0.1.142` was the first release that sends `CIVITAI_GITHUB_OIDC_TOKEN`; `v0.1.143` also stops warning "HEAD is on no remote" at a pushed tag tip; `v0.1.145` refuses a storage hook file that sits inside the build output directory, as civitai.com does.) To move the pin, set the version and all four sha256 values in `scripts/pinned-cli.sh` from that CLI release's `checksums.txt` (the bare-binary rows). CI's `release-pin` job fails a tag push while any of them is unset.
+> 🔴 **Maintainers:** this version pins civitai CLI `v0.1.146`. (`v0.1.142` was the first release that sends `CIVITAI_GITHUB_OIDC_TOKEN`; `v0.1.143` also stops warning "HEAD is on no remote" at a pushed tag tip; `v0.1.145` refuses a storage hook file that sits inside the build output directory, as civitai.com does; `v0.1.146` makes the listing-check warning in an unattended submit name the real cause instead of advising `civitai login`.) To move the pin, set the version and all four sha256 values in `scripts/pinned-cli.sh` from that CLI release's `checksums.txt` (the bare-binary rows). CI's `release-pin` job fails a tag push while any of them is unset.
 
 ## What Civitai records, and what it does not mean
 
